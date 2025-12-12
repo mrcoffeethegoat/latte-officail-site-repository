@@ -7,6 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/remixicon/fonts/remixicon.css" rel="stylesheet">
 <link rel="stylesheet" href="fghjk.css">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <style>
   :root{
@@ -31,11 +33,12 @@ body{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  padding:0 18px;
+  padding:calc(12px + env(safe-area-inset-top)) 18px 12px 18px;
   gap:12px;
   border-bottom:1px solid rgba(255,255,255,0.03);
   backdrop-filter: blur(6px);
 }
+.no-topbar .site-header{display:none}
 .brand{display:flex;align-items:center;gap:12px}
 .brand .logo{
   width:44px;height:44px;border-radius:10px;
@@ -47,8 +50,8 @@ body{
 }
 .brand .title{font-weight:700;font-size:1.05rem}
 .header-actions{display:flex;align-items:center;gap:8px}
-.search{min-width:220px;padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:var(--muted);outline:none}
-.search:focus{box-shadow:0 8px 30px rgba(0,0,0,0.5);color:#e6f7fb}
+.header-actions .small-btn{border:0;background:transparent;color:var(--muted);font-size:1.05rem;padding:8px;border-radius:8px;cursor:pointer}
+.header-actions .small-btn:hover{color:var(--accent)}
 .icon-btn{border:0;background:transparent;color:var(--muted);font-size:1.25rem;padding:8px;border-radius:8px;cursor:pointer}
 .icon-btn:hover{color:var(--accent)}
 
@@ -67,14 +70,15 @@ body{
 .sidebar-footer{margin-top:auto;opacity:0.6;font-size:0.85rem}
 
 main{flex:1;position:relative;display:flex;align-items:stretch;overflow:hidden;padding:18px}
-iframe{width:100%;height:100%;border-radius:12px;border:0;background:#fff;transform:translateX(12px);opacity:0;transition:transform .45s ease,opacity .45s ease,filter .45s ease;box-shadow:0 20px 60px rgba(2,6,23,0.7)}
-iframe.active{transform:none;opacity:1}
+iframe{width:100%;height:100%;border-radius:12px;border:0;background:#fff;opacity:0;transition:opacity .35s ease,filter .35s ease,transform .45s ease;box-shadow:0 30px 80px rgba(2,6,23,0.75)}
+iframe.active{opacity:1;transform:translateY(0)}
 
 .loading{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);padding:10px 14px;border-radius:999px;background:rgba(0,0,0,0.5);color:var(--accent);font-weight:600;display:none}
 .loading.visible{display:block}
 
 /* Collapsed sidebar for small screens */
 .sidebar.collapsed{transform:translateX(-120%);transition:transform .35s ease;position:absolute;z-index:30;top:72px;bottom:0}
+.sidebar.hidden{transform:translateX(-120%) !important;opacity:0;pointer-events:none}
 
 @media (max-width:900px){
   .search{display:none}
@@ -130,6 +134,14 @@ iframe.enter { animation: slideUpFade .45s ease both }
 .sidebar{transition:transform .35s ease, width .25s ease}
 .sidebar.collapsed{transition:transform .35s ease}
 
+.float-toggle{position:fixed;left:12px;top:50%;transform:translateY(-50%);z-index:60;background:linear-gradient(135deg,var(--accent),#6f8cff);color:#001;border-radius:999px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,0.5);border:0;cursor:pointer}
+.float-toggle:hover{transform:translateY(-50%) scale(1.03)}
+.header-actions .small-btn{background:transparent;border:0;color:var(--muted);font-size:1.15rem;padding:8px;border-radius:8px}
+
+/* nav polish */
+.nav-item{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);}
+.nav-item.active{background:linear-gradient(90deg,var(--accent),#6f8cff);color:#001}
+
 
 </style>
 <body>
@@ -140,7 +152,7 @@ iframe.enter { animation: slideUpFade .45s ease both }
     <div class="title">Ultimate Game Hub</div>
   </div>
   <div class="header-actions">
-    <input id="search" class="search" placeholder="Search games, apps..." aria-label="Search">
+    <button id="hideHeader" class="small-btn" title="Hide top bar" aria-pressed="false"><i class="ri-arrow-up-s-line"></i></button>
     <button id="toggleSidebar" class="icon-btn" aria-label="Toggle sidebar"><i class="ri-menu-3-line"></i></button>
   </div>
 </header>
@@ -158,6 +170,8 @@ iframe.enter { animation: slideUpFade .45s ease both }
     <div class="sidebar-footer">Made with ♥</div>
   </aside>
 
+  <button id="toggleFullSidebar" class="icon-btn float-toggle" aria-label="Toggle full sidebar"><i class="ri-arrow-left-right-line"></i></button>
+
   <!-- Main iframe area -->
   <main>
     <div id="loading" class="loading">Loading...</div>
@@ -172,18 +186,25 @@ const iframes = [document.getElementById('frame1'), document.getElementById('fra
 let activeIndex = 0;
 const loading = document.getElementById('loading');
 
+// Improved loadUrl: prefer onload, fallback after 1s
 function loadUrl(url) {
   loading.classList.add('visible');
   const nextIndex = (activeIndex + 1) % 2;
-  iframes[nextIndex].src = url;
+  // prepare next iframe
   iframes[nextIndex].classList.add('active');
-  const swap = () => {
-    iframes[activeIndex].classList.remove('active');
+  // set src last to trigger load event
+  iframes[nextIndex].src = url;
+
+  const finish = () => {
+    try{ iframes[activeIndex].classList.remove('active'); }catch(e){}
     activeIndex = nextIndex;
     loading.classList.remove('visible');
   };
-  iframes[nextIndex].onload = swap;
-  setTimeout(swap, 1000);
+
+  let done = false;
+  iframes[nextIndex].onload = () => { if(!done){ done = true; finish(); } };
+  // fallback in case load doesn't fire quickly (some 3rd-party pages)
+  setTimeout(()=>{ if(!done){ done = true; finish(); } }, 1000);
 }
 
 navItems.forEach(btn => {
@@ -197,9 +218,20 @@ navItems.forEach(btn => {
 // Sidebar toggle for small screens
 const toggle = document.getElementById('toggleSidebar');
 const sidebar = document.getElementById('sidebar');
-toggle.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
+if(toggle) toggle.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
 
-// Quick keyboard: 1..5 to open nav items
+// Full slide toggle (float button)
+const toggleFull = document.getElementById('toggleFullSidebar');
+if(toggleFull){
+  toggleFull.addEventListener('click', ()=>{
+    sidebar.classList.toggle('hidden');
+    const hidden = sidebar.classList.contains('hidden');
+    toggleFull.setAttribute('aria-pressed', String(!hidden));
+    toggleFull.innerHTML = hidden ? '<i class="ri-menu-2-line"></i>' : '<i class="ri-close-line"></i>';
+  });
+}
+
+// Quick keyboard: 1..n to open nav items
 window.addEventListener('keydown', (e) => {
   if (e.key >= '1' && e.key <= String(navItems.length)) {
     const idx = Number(e.key) - 1;
@@ -223,6 +255,16 @@ const observeIframes = () => {
     });
   });
 };
+
+// Hide top bar control
+const hideBtn = document.getElementById('hideHeader');
+if(hideBtn){
+  hideBtn.addEventListener('click', ()=>{
+    document.body.classList.toggle('no-topbar');
+    const pressed = String(document.body.classList.contains('no-topbar'));
+    hideBtn.setAttribute('aria-pressed', pressed);
+  });
+}
 
 // subtle logo animation
 const logo = document.getElementById('logo');
